@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Search View -->
+    <record id="view_oh_appraisal_ninebox_template_search" model="ir.ui.view">
+        <field name="name">oh.appraisal.ninebox.template.search</field>
+        <field name="model">oh.appraisal.ninebox.template</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="department_id"/>
+                <separator/>
+                <filter string="Active" name="active" domain="[('active', '=', True)]"/>
+                <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Department" name="group_department" context="{'group_by': 'department_id'}"/>
+                    <filter string="Company" name="group_company" context="{'group_by': 'company_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_oh_appraisal_ninebox_template_form" model="ir.ui.view">
+        <field name="name">oh.appraisal.ninebox.template.form</field>
+        <field name="model">oh.appraisal.ninebox.template</field>
+        <field name="arch" type="xml">
+            <form>
+                
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="department_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="is_synced" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Performance" name="performance">
+                            <!-- Sync Button Group -->
+                            <div class="d-flex justify-content-end mb-3 align-items-center">
+                                <div class="text-muted me-2" invisible="not is_synced">
+                                    <i class="fa fa-info-circle"/> Synced from: <field name="selected_okr_template_id" readonly="1" class="oe_inline"/>
+                                </div>
+                                <field name="selected_okr_template_id" 
+                                    options="{'no_create': True, 'no_open': True}"
+                                    placeholder="Select OKR Template"
+                                    class="me-2"
+                                    invisible="is_synced"/>
+                                <button name="action_sync_key_results" 
+                                        string="Sync Key Results" 
+                                        type="object" 
+                                        class="btn btn-primary"
+                                        invisible="is_synced or not department_id or not selected_okr_template_id"/>
+                                <button name="action_unsync_key_results" 
+                                        string="Unsync &amp; Clear" 
+                                        type="object" 
+                                        class="btn btn-secondary"
+                                        confirm="This will clear all data in the performance tables. Are you sure?"
+                                        invisible="not is_synced"/>
+                            </div>
+
+                            <!-- Add a warning banner when synced -->
+                            <div class="alert alert-info" role="alert" invisible="not is_synced">
+                                <i class="fa fa-info-circle"/> This template is currently synced with OKR Template. 
+                                To make manual changes, please unsync first.
+                            </div>
+                            
+                            <!-- Performance Weightage Distribution -->
+                            <group string="Weightage Distribution" name="weightage_distribution" class="alert alert-info">
+                                <group>
+                                    <div class="o_td_label">
+                                        <label for="dept_weightage" string="Department"/>
+                                        <field name="dept_weightage" readonly="1"/> %
+                                    </div>
+                                    <div class="o_td_label">
+                                        <label for="role_weightage" string="Role"/>
+                                        <field name="role_weightage" readonly="1"/> %
+                                    </div>
+                                    <div class="o_td_label">
+                                        <label for="common_weightage" string="Common"/>
+                                        <field name="common_weightage" readonly="1"/> %
+                                    </div>
+                                </group>
+                                <div class="text-muted">
+                                    Weightages are configured in the Master Template and automatically loaded based on the selected department.
+                                </div>
+                            </group>
+                            
+                            <!-- Department Performance -->
+                            <group string="Department Criteria Table" name="dept_performance">
+                                <field name="performance_dept_line_ids" nolabel="1" readonly="is_synced">
+                                    <list editable="bottom">
+                                        <field name="sequence" widget="handle"/>
+                                        <field name="objective_breakdown"/>
+                                        <field name="priority"/>
+                                        <field name="team_id"/>
+                                        <field name="metric"/>
+                                        <field name="actual_value"/>
+                                        <field name="target_value"/>
+                                        <field name="progress" widget="percentage"/>
+                                        <field name="distributed_weightage"/>
+                                    </list>
+                                </field>
+                            </group>
+                            
+                            <!-- Role Performance -->
+                            <group string="Role Criteria Table" name="role_performance">
+                                <field name="performance_role_line_ids" nolabel="1" readonly="is_synced">
+                                    <list editable="bottom">
+                                        <field name="sequence" widget="handle"/>
+                                        <field name="objective_breakdown"/>
+                                        <field name="priority"/>
+                                        <field name="team_id"/>
+                                        <field name="metric"/>
+                                        <field name="actual_value"/>
+                                        <field name="target_value"/>
+                                        <field name="progress" widget="percentage"/>
+                                        <field name="distributed_weightage"/>
+                                    </list>
+                                </field>
+                            </group>
+
+                            <!-- Common Performance -->
+                            <group string="Common Criteria Table" name="common_performance">
+                                <field name="performance_common_line_ids" nolabel="1" readonly="is_synced">
+                                    <list editable="bottom">
+                                        <field name="sequence" widget="handle"/>
+                                        <field name="objective_breakdown"/>
+                                        <field name="priority"/>
+                                        <field name="team_id"/>
+                                        <field name="metric"/>
+                                        <field name="actual_value"/>
+                                        <field name="target_value"/>
+                                        <field name="progress" widget="percentage"/>
+                                        <field name="distributed_weightage"/>
+                                    </list>
+                                </field>
+                            </group>
+                        </page>
+                        
+                        <page string="Potential" name="potential">
+                            <!-- Potential Weightage Distribution -->
+                            <group string="Weightage Distribution" name="weightage_distribution" class="alert alert-info">
+                                <group>
+                                    <div class="o_td_label">
+                                        <label for="dept_weightage" string="Department"/>
+                                        <field name="dept_weightage" readonly="1"/> %
+                                    </div>
+                                    <div class="o_td_label">
+                                        <label for="role_weightage" string="Role"/>
+                                        <field name="role_weightage" readonly="1"/> %
+                                    </div>
+                                    <div class="o_td_label">
+                                        <label for="common_weightage" string="Common"/>
+                                        <field name="common_weightage" readonly="1"/> %
+                                    </div>
+                                </group>
+                                <div class="text-muted">
+                                    Weightages are configured in the Master Template and automatically loaded based on the selected department.
+                                </div>
+                            </group>
+                            
+                            <!-- Similar structure for Potential -->
+                            <group string="Department Criteria Table" name="dept_potential">
+                                <field name="potential_dept_line_ids" nolabel="1">
+                                    <list editable="bottom">
+                                        <field name="sequence" widget="handle"/>
+                                        <field name="objective_breakdown"/>
+                                        <field name="priority"/>
+                                        <field name="team_id"/>
+                                        <field name="metric"/>
+                                        <field name="actual_value"/>
+                                        <field name="target_value"/>
+                                        <field name="progress" widget="percentage"/>
+                                        <field name="distributed_weightage"/>
+                                    </list>
+                                </field>
+                            </group>
+                            
+                            <group string="Role Criteria Table" name="role_potential">
+                                <field name="potential_role_line_ids" nolabel="1">
+                                    <list editable="bottom">
+                                        <field name="sequence" widget="handle"/>
+                                        <field name="objective_breakdown"/>
+                                        <field name="priority"/>
+                                        <field name="team_id"/>
+                                        <field name="metric"/>
+                                        <field name="actual_value"/>
+                                        <field name="target_value"/>
+                                        <field name="progress" widget="percentage"/>
+                                        <field name="distributed_weightage"/>
+                                    </list>
+                                </field>
+                            </group>
+
+                            <group string="Common Criteria Table" name="common_potential">
+                                <field name="potential_common_line_ids" nolabel="1">
+                                    <list editable="bottom">
+                                        <field name="sequence" widget="handle"/>
+                                        <field name="objective_breakdown"/>
+                                        <field name="priority"/>
+                                        <field name="team_id"/>
+                                        <field name="metric"/>
+                                        <field name="actual_value"/>
+                                        <field name="target_value"/>
+                                        <field name="progress" widget="percentage"/>
+                                        <field name="distributed_weightage"/>
+                                    </list>
+                                </field>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                
+            </form>
+        </field>
+    </record>
+</odoo>
