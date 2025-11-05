@@ -5,3 +5,5 @@ access_oh_ninebox_performance_line_user,oh.appraisal.ninebox.performance.line.us
 access_oh_ninebox_performance_line_manager,oh.appraisal.ninebox.performance.line.manager,model_oh_appraisal_ninebox_performance_line,oh_ninebox_group_manager,1,1,1,1
 access_oh_ninebox_potential_line_user,oh.appraisal.ninebox.potential.line.user,model_oh_appraisal_ninebox_potential_line,oh_ninebox_group_user,1,0,0,0
 access_oh_ninebox_potential_line_manager,oh.appraisal.ninebox.potential.line.manager,model_oh_appraisal_ninebox_potential_line,oh_ninebox_group_manager,1,1,1,1
+
+access_oh_ninebox_weightage_user,oh.appraisal.ninebox.weightage.user,model_oh_appraisal_ninebox_weightage,oh_ninebox_group_user,1,1,1,1

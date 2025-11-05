@@ -62,6 +62,144 @@ class OHAppraisalNineboxTemplate(models.Model):
         domain="[('department_id', '=', department_id), ('active', '=', True)]"
     )
 
+    
+    # Split ratio fields
+    performance_split = fields.Float(
+        'Performance Split (%)', 
+        tracking=True,
+        help="Percentage of department weightage allocated to Performance"
+    )
+    potential_split = fields.Float(
+        'Potential Split (%)', 
+        tracking=True,
+        help="Percentage of department weightage allocated to Potential"
+    )
+
+    # Split weightage fields
+    performance_dept_weightage = fields.Float(
+        'Performance Department Weightage (%)',
+        compute='_compute_split_weightages',
+        store=True
+    )
+    potential_dept_weightage = fields.Float(
+        'Potential Department Weightage (%)',
+        compute='_compute_split_weightages',
+        store=True
+    )
+
+    # Weightage distribution tables
+    performance_weightage_ids = fields.One2many(
+        'oh.appraisal.ninebox.weightage',
+        'template_id',
+        domain=[('type', '=', 'performance')],
+        context={'default_type': 'performance'}
+    )
+    potential_weightage_ids = fields.One2many(
+        'oh.appraisal.ninebox.weightage',
+        'template_id',
+        domain=[('type', '=', 'potential')],
+        context={'default_type': 'potential'}
+    )
+
+    # Computed fields for available weightages
+    performance_available_dept = fields.Float(
+        'Available Performance Department (%)',
+        compute='_compute_available_weightages'
+    )
+    performance_available_role = fields.Float(
+        'Available Performance Role (%)',
+        compute='_compute_available_weightages'
+    )
+    performance_available_common = fields.Float(
+        'Available Performance Common (%)',
+        compute='_compute_available_weightages'
+    )
+    
+    potential_available_dept = fields.Float(
+        'Available Potential Department (%)',
+        compute='_compute_available_weightages'
+    )
+    potential_available_role = fields.Float(
+        'Available Potential Role (%)',
+        compute='_compute_available_weightages'
+    )
+    potential_available_common = fields.Float(
+        'Available Potential Common (%)',
+        compute='_compute_available_weightages'
+    )
+
+    @api.depends('performance_weightage_ids', 'potential_weightage_ids',
+                'performance_split', 'potential_split',
+                'dept_weightage', 'role_weightage', 'common_weightage')
+    def _compute_available_weightages(self):
+        for record in self:
+            # Performance available
+            perf_allocated_dept = sum(record.performance_weightage_ids.mapped('department_weightage'))
+            perf_allocated_role = sum(record.performance_weightage_ids.mapped('role_weightage'))
+            perf_allocated_common = sum(record.performance_weightage_ids.mapped('common_weightage'))
+
+            record.performance_available_dept = record.performance_split - perf_allocated_dept
+            record.performance_available_role = record.role_weightage - perf_allocated_role
+            record.performance_available_common = record.common_weightage - perf_allocated_common
+
+            # Potential available
+            pot_allocated_dept = sum(record.potential_weightage_ids.mapped('department_weightage'))
+            pot_allocated_role = sum(record.potential_weightage_ids.mapped('role_weightage'))
+            pot_allocated_common = sum(record.potential_weightage_ids.mapped('common_weightage'))
+
+            record.potential_available_dept = record.potential_split - pot_allocated_dept
+            record.potential_available_role = record.role_weightage - pot_allocated_role
+            record.potential_available_common = record.common_weightage - pot_allocated_common
+
+
+    # @api.depends('dept_weightage', 'performance_split', 'potential_split')
+    # def _compute_split_weightages(self):
+    #     for record in self:
+    #         record.performance_dept_weightage = record.dept_weightage * (record.performance_split / 100.0) if record.performance_split else 0.0
+    #         record.potential_dept_weightage = record.dept_weightage * (record.potential_split / 100.0) if record.potential_split else 0.0
+
+    @api.constrains('performance_split', 'potential_split')
+    def _check_split_total(self):
+        for record in self:
+            if not record.dept_weightage:
+                continue
+                
+            total_split = (record.performance_split or 0.0) + (record.potential_split or 0.0)
+            if total_split > record.dept_weightage:
+                raise ValidationError(_(
+                    'Total of Performance (%s%%) and Potential (%s%%) splits cannot exceed '
+                    'the available Department weightage (%s%%)'
+                ) % (record.performance_split, record.potential_split, record.dept_weightage))
+            
+            if record.performance_split < 0 or record.potential_split < 0:
+                raise ValidationError(_('Split percentages cannot be negative'))
+
+    @api.onchange('performance_split', 'potential_split')
+    def _onchange_splits(self):
+        for record in self:
+            if not record.dept_weightage:
+                return {
+                    'warning': {
+                        'title': _('Warning'),
+                        'message': _('Please select a department first to get available weightage.')
+                    }
+                }
+
+            if record.performance_split or record.potential_split:
+                total = (record.performance_split or 0.0) + (record.potential_split or 0.0)
+                if total > record.dept_weightage:
+                    return {
+                        'warning': {
+                            'title': _('Warning'),
+                            'message': _(
+                                'Total of Performance and Potential splits (%s%%) cannot exceed '
+                                'the available Department weightage (%s%%)'
+                            ) % (total, record.dept_weightage)
+                        }
+                    }
+
+    
+
 
     @api.depends('department_id')
     def _compute_weightage_distribution(self):
@@ -120,6 +258,8 @@ class OHAppraisalNineboxTemplate(models.Model):
     @api.onchange('department_id')
     def _onchange_department_id(self):
         self.selected_okr_template_id = False
+        self.performance_split = 0.0
+        self.potential_split = 0.0
 
     def action_sync_key_results(self):
         """Sync Key Results from selected OKR template"""
@@ -236,6 +376,66 @@ class OHAppraisalNineboxTemplate(models.Model):
                 }
             }
         }
+    
+    # Update the weightage distribution check for performance
+    @api.constrains('performance_dept_line_ids')
+    def _check_performance_weightage_distribution(self):
+        for record in self:
+            dept_total = sum(record.performance_dept_line_ids.mapped('distributed_weightage'))
+            if dept_total > record.performance_dept_weightage:
+                raise ValidationError(_('Total department performance weightage cannot exceed %s%%') % record.performance_dept_weightage)
+
+    # Update the weightage distribution check for potential
+    @api.constrains('potential_dept_line_ids')
+    def _check_potential_weightage_distribution(self):
+        for record in self:
+            dept_total = sum(record.potential_dept_line_ids.mapped('distributed_weightage'))
+            if dept_total > record.potential_dept_weightage:
+                raise ValidationError(_('Total department potential weightage cannot exceed %s%%') % record.potential_dept_weightage)
+
+
+
+    # Performance currently distributed totals
+    performance_dept_distributed = fields.Float(
+        'Performance Department Distributed (%)', 
+        compute='_compute_performance_distributed'
+    )
+    performance_role_distributed = fields.Float(
+        'Performance Role Distributed (%)', 
+        compute='_compute_performance_distributed'
+    )
+    performance_common_distributed = fields.Float(
+        'Performance Common Distributed (%)', 
+        compute='_compute_performance_distributed'
+    )
+
+    # Potential currently distributed totals
+    potential_dept_distributed = fields.Float(
+        'Potential Department Distributed (%)', 
+        compute='_compute_potential_distributed'
+    )
+    potential_role_distributed = fields.Float(
+        'Potential Role Distributed (%)', 
+        compute='_compute_potential_distributed'
+    )
+    potential_common_distributed = fields.Float(
+        'Potential Common Distributed (%)', 
+        compute='_compute_potential_distributed'
+    )
+
+    @api.depends('performance_dept_line_ids.distributed_weightage')
+    def _compute_performance_distributed(self):
+        for record in self:
+            record.performance_dept_distributed = sum(record.performance_dept_line_ids.mapped('distributed_weightage'))
+            record.performance_role_distributed = sum(record.performance_role_line_ids.mapped('distributed_weightage'))
+            record.performance_common_distributed = sum(record.performance_common_line_ids.mapped('distributed_weightage'))
+
+    @api.depends('potential_dept_line_ids.distributed_weightage')
+    def _compute_potential_distributed(self):
+        for record in self:
+            record.potential_dept_distributed = sum(record.potential_dept_line_ids.mapped('distributed_weightage'))
+            record.potential_role_distributed = sum(record.potential_role_line_ids.mapped('distributed_weightage'))
+            record.potential_common_distributed = sum(record.potential_common_line_ids.mapped('distributed_weightage'))
 
 
 class OHAppraisalNineboxPerformanceLine(models.Model):
@@ -272,6 +472,22 @@ class OHAppraisalNineboxPerformanceLine(models.Model):
             else:
                 record.progress = 0.0
 
+    @api.constrains('distributed_weightage')
+    def _check_distributed_weightage(self):
+        for record in self:
+            if record.category == 'department':
+                available = record.template_id.performance_available_dept
+                current = record.template_id.performance_dept_distributed
+            elif record.category == 'role':
+                available = record.template_id.performance_available_role
+                current = record.template_id.performance_role_distributed
+            else:  # common
+                available = record.template_id.performance_available_common
+                current = record.template_id.performance_common_distributed
+
+            if current > available:
+                raise ValidationError(_('Total distributed weightage cannot exceed available weightage of %s%%') % available)
+
 class OHAppraisalNineboxPotentialLine(models.Model):
     _name = 'oh.appraisal.ninebox.potential.line'
     _description = '9-Box Potential Line'
@@ -305,3 +521,64 @@ class OHAppraisalNineboxPotentialLine(models.Model):
                 record.progress = (record.actual_value / record.target_value) * 100
             else:
                 record.progress = 0.0
+
+    @api.constrains('distributed_weightage')
+    def _check_distributed_weightage(self):
+        for record in self:
+            if record.category == 'department':
+                available = record.template_id.potential_available_dept
+                current = record.template_id.potential_dept_distributed
+            elif record.category == 'role':
+                available = record.template_id.potential_available_role
+                current = record.template_id.potential_role_distributed
+            else:  # common
+                available = record.template_id.potential_available_common
+                current = record.template_id.potential_common_distributed
+
+            if current > available:
+                raise ValidationError(_('Total distributed weightage cannot exceed available weightage of %s%%') % available)
+
+
+class OHAppraisalNineboxWeightage(models.Model):
+    _name = 'oh.appraisal.ninebox.weightage'
+    _description = 'Nine Box Weightage Distribution'
+    _order = 'sequence, id'
+
+    sequence = fields.Integer('Sequence', default=10)
+    template_id = fields.Many2one('oh.appraisal.ninebox.template', ondelete='cascade')
+    team_id = fields.Many2one('oh.appraisal.team', string='Team', required=True)
+    type = fields.Selection([
+        ('performance', 'Performance'),
+        ('potential', 'Potential')
+    ], required=True)
+
+    department_weightage = fields.Float('Department Weightage (%)')
+    role_weightage = fields.Float('Role Weightage (%)')
+    common_weightage = fields.Float('Common Weightage (%)')
+
+    @api.constrains('department_weightage', 'role_weightage', 'common_weightage')
+    def _check_weightage_limits(self):
+        for record in self:
+            # Get available weightages
+            available_dept = record.template_id.performance_split if record.type == 'performance' else record.template_id.potential_split
+            available_role = record.template_id.role_weightage
+            available_common = record.template_id.common_weightage
+
+            # Get total allocated for each type
+            domain = [
+                ('template_id', '=', record.template_id.id),
+                ('type', '=', record.type),
+                ('id', '!=', record.id)
+            ]
+            other_records = self.search(domain)
+            total_dept = sum(other_records.mapped('department_weightage')) + record.department_weightage
+            total_role = sum(other_records.mapped('role_weightage')) + record.role_weightage
+            total_common = sum(other_records.mapped('common_weightage')) + record.common_weightage
+
+            if total_dept > available_dept:
+                raise ValidationError(_('Total department weightage cannot exceed %s%%') % available_dept)
+            if total_role > available_role:
+                raise ValidationError(_('Total role weightage cannot exceed %s%%') % available_role)
+            if total_common > available_common:
+                raise ValidationError(_('Total common weightage cannot exceed %s%%') % available_common)
+            
