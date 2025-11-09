@@ -107,14 +107,16 @@
                                         invisible="not is_synced"/>
                             </div>
 
-                            <!-- Add a warning banner when synced -->
-                            <div class="alert alert-info" role="alert" invisible="not is_synced">
-                                <i class="fa fa-info-circle"/> This template is currently synced with OKR Template. 
-                                To make manual changes, please unsync first.
-                            </div>
+                            
                             
                             <!-- Performance Weightage Distribution -->
                             <group string="Weightage Distribution" name="performance_weightage" class="alert alert-info">
+                                <!-- Add a warning banner when synced -->
+                                <div class="alert alert-info" role="alert" invisible="not is_synced">
+                                    <i class="fa fa-info-circle"/> This template is currently synced with OKR Template. 
+                                    To make manual changes, please unsync first.
+                                </div>
+                                
                                 <group>
                                     <group string="Weightage Distributed">
                                         <label for="performance_split" string="Available Weightage"/>

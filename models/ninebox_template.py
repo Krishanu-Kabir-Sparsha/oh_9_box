@@ -277,61 +277,94 @@ class OHAppraisalNineboxTemplate(models.Model):
         self.potential_split = 0.0
 
     def action_sync_key_results(self):
-        """Sync Key Results from selected OKR template"""
+        """Sync Key Results and Weightages from selected OKR template"""
         self.ensure_one()
         if not self.department_id or not self.selected_okr_template_id:
             return
 
-        # Clear existing performance lines
+        okr_template = self.selected_okr_template_id
+
+        # Clear existing records
+        self.performance_weightage_ids.unlink()
         self.performance_dept_line_ids.unlink()
         self.performance_role_line_ids.unlink()
         self.performance_common_line_ids.unlink()
 
-        okr_template = self.selected_okr_template_id
+        # 1. First sync master weightages
+        self.performance_split = okr_template.department_budget_functional
+        self.role_weightage = okr_template.department_budget_role
+        self.common_weightage = okr_template.department_budget_common
 
-        # Sync department key results
+        # 2. Sync weightage distribution from OKR template's weightage table
+        existing_teams = {}
+        for okr_weightage in okr_template.weightage_ids:
+            weightage_vals = {
+                'template_id': self.id,
+                'team_id': okr_weightage.team_id.id,
+                'type': 'performance',
+                'department_weightage': okr_weightage.department_weightage,
+                'role_weightage': okr_weightage.role_weightage,
+                # common_weightage will be auto-computed
+            }
+            weightage = self.env['oh.appraisal.ninebox.weightage'].create(weightage_vals)
+            existing_teams[okr_weightage.team_id.id] = weightage
+
+        # 3. Sync key results with exact values
+        # Department key results
         for kr in okr_template.department_key_result_ids:
-            self.env['oh.appraisal.ninebox.performance.line'].create({
-                'template_id': self.id,
-                'category': 'department',
-                'objective_breakdown': kr.key_objective_breakdown.objective_item,
-                'priority': kr.breakdown_priority,
-                'team_id': kr.team_id.id,
-                'metric': kr.metric,
-                'actual_value': kr.actual_value,
-                'target_value': kr.target_value,
-                'distributed_weightage': kr.distributed_weightage,
-            })
+            team_weightage = existing_teams.get(kr.team_id.id)
+            if team_weightage:
+                self.env['oh.appraisal.ninebox.performance.line'].create({
+                    'template_id': self.id,
+                    'category': 'department',
+                    'objective_breakdown': kr.key_objective_breakdown.objective_item,
+                    'priority': kr.breakdown_priority,
+                    'team_id': kr.team_id.id,
+                    'metric': kr.metric,
+                    'actual_value': kr.actual_value,
+                    'target_value': kr.target_value,
+                    'distributed_weightage': kr.distributed_weightage,
+                })
 
-        # Sync role key results
+        # Role key results 
         for kr in okr_template.role_key_result_ids:
-            self.env['oh.appraisal.ninebox.performance.line'].create({
-                'template_id': self.id,
-                'category': 'role',
-                'objective_breakdown': kr.key_objective_breakdown.objective_item,
-                'priority': kr.breakdown_priority,
-                'team_id': kr.team_id.id,
-                'metric': kr.metric,
-                'actual_value': kr.actual_value,
-                'target_value': kr.target_value,
-                'distributed_weightage': kr.distributed_weightage,
-            })
+            team_weightage = existing_teams.get(kr.team_id.id)
+            if team_weightage:
+                self.env['oh.appraisal.ninebox.performance.line'].create({
+                    'template_id': self.id,
+                    'category': 'role',
+                    'objective_breakdown': kr.key_objective_breakdown.objective_item,
+                    'priority': kr.breakdown_priority,
+                    'team_id': kr.team_id.id,
+                    'metric': kr.metric,
+                    'actual_value': kr.actual_value,
+                    'target_value': kr.target_value,
+                    'distributed_weightage': kr.distributed_weightage,
+                })
 
-        # Sync common key results
+        # Common key results
         for kr in okr_template.common_key_result_ids:
-            self.env['oh.appraisal.ninebox.performance.line'].create({
-                'template_id': self.id,
-                'category': 'common',
-                'objective_breakdown': kr.key_objective_breakdown.objective_item,
-                'priority': kr.breakdown_priority,
-                'team_id': kr.team_id.id,
-                'metric': kr.metric,
-                'actual_value': kr.actual_value,
-                'target_value': kr.target_value,
-                'distributed_weightage': kr.distributed_weightage,
-            })
+            team_weightage = existing_teams.get(kr.team_id.id)
+            if team_weightage:
+                self.env['oh.appraisal.ninebox.performance.line'].create({
+                    'template_id': self.id,
+                    'category': 'common',
+                    'objective_breakdown': kr.key_objective_breakdown.objective_item,
+                    'priority': kr.breakdown_priority,
+                    'team_id': kr.team_id.id,
+                    'metric': kr.metric,
+                    'actual_value': kr.actual_value,
+                    'target_value': kr.target_value,
+                    'distributed_weightage': kr.distributed_weightage,
+                })
 
+        # Update computed fields and status
         self.is_synced = True
+        self._compute_summary_weightages()
+        self._compute_allocated_to_teams()
+        self._compute_performance_distributed()
+        self._ensure_common_weightage_distribution()
+
         return {
             'type': 'ir.actions.client',
             'tag': 'reload',
@@ -652,8 +685,14 @@ class OHAppraisalNineboxWeightage(models.Model):
     def create(self, vals):
         return super().create(vals)
 
+    @api.constrains('department_weightage', 'role_weightage')
+    def _check_edit_when_synced(self):
+        for record in self:
+            if record.template_id.is_synced:
+                raise ValidationError(_("Cannot modify weightages while template is synced with OKR template"))
+
     def write(self, vals):
-        # Remove common_weightage from manual updates
-        if 'common_weightage' in vals:
-            del vals['common_weightage']
+        # Prevent edits when synced except for common_weightage
+        if self.template_id.is_synced and any(f in vals for f in ['department_weightage', 'role_weightage']):
+            raise ValidationError(_("Cannot modify weightages while template is synced with OKR template"))
         return super().write(vals)
