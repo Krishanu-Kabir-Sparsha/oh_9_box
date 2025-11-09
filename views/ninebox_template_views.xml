@@ -117,29 +117,71 @@
                             <!-- Performance Weightage Distribution -->
                             <group string="Weightage Distribution" name="performance_weightage" class="alert alert-info">
                                 <group>
-                                    <div class="row">
-                                        <div class="col-4">Available Department: <field name="performance_available_dept" readonly="1"/> %</div>
-                                        <div class="col-4">Available Role: <field name="performance_available_role" readonly="1"/> %</div>
-                                        <div class="col-4">Available Common: <field name="performance_available_common" readonly="1"/> %</div>
-                                    </div>
+                                    <group string="Weightage Distributed">
+                                        <label for="performance_split" string="Available Weightage"/>
+                                        <div>
+                                            <span>Dept: <field name="performance_split" readonly="1" class="oe_inline"/> %</span> |
+                                            <span>Role: <field name="role_weightage" readonly="1" class="oe_inline"/> %</span> |
+                                            <span>Common: <field name="common_weightage" readonly="1" class="oe_inline"/> %</span>
+                                        </div>
+                                    </group>
+                                    <group string="Allocated to Teams">
+                                        <label for="performance_dept_distributed" string="Currently Allocated"/>
+                                        <div>
+                                            <span>Dept: <field name="performance_dept_distributed" readonly="1" class="oe_inline"
+                                                decoration-danger="performance_dept_distributed &gt; performance_split"
+                                                decoration-success="performance_dept_distributed &lt;= performance_split"/> %</span> |
+                                            <span>Role: <field name="performance_role_distributed" readonly="1" class="oe_inline"
+                                                decoration-danger="performance_role_distributed &gt; role_weightage"
+                                                decoration-success="performance_role_distributed &lt;= role_weightage"/> %</span> |
+                                            <span>Common: <field name="performance_common_distributed" readonly="1" class="oe_inline"/> %</span>
+                                        </div>
+                                    </group>
                                 </group>
+                                
                                 <field name="performance_weightage_ids" nolabel="1">
                                     <list editable="bottom">
                                         <field name="sequence" widget="handle"/>
-                                        <field name="team_id"/>
-                                        <field name="department_weightage" sum="Total Department"/>
-                                        <field name="role_weightage" sum="Total Role"/>
-                                        <field name="common_weightage" sum="Total Common"/>
+                                        <field name="team_id" options="{'no_create': True, 'no_open': True}"
+                                            domain="[('company_id', '=', parent.company_id), 
+                                                    ('department_id', '=', parent.department_id)]"
+                                            width="200"/>
+                                        <field name="department_weightage" 
+                                            sum="Total Dept %"
+                                            decoration-danger="department_weightage &gt; 0 and parent.performance_dept_distributed &gt; parent.performance_split"
+                                            width="150"/>
+                                        <field name="role_weightage" 
+                                            sum="Total Role %"
+                                            decoration-danger="role_weightage &gt; 0 and parent.performance_role_distributed &gt; parent.role_weightage"
+                                            width="150"/>
+                                        <field name="common_weightage" 
+                                            sum="Total Common %"
+                                            readonly="1"
+                                            force_save="1"
+                                            decoration-danger="common_weightage &gt; 0 and parent.performance_common_distributed &gt; parent.common_weightage"
+                                            width="150"/>
                                     </list>
                                 </field>
                             </group>
                             
                             <!-- Department Performance -->
                             <group string="Department Criteria Table" name="dept_performance">
-                                <div class="d-flex justify-content-end mb-2">
-                                    <div class="text-muted me-4">Available Weightage: <field name="performance_available_dept" readonly="1" class="oe_inline"/> %</div>
-                                    <div class="text-muted">Currently Distributed: <field name="performance_dept_distributed" readonly="1" class="oe_inline"/> %</div>
-                                </div>
+                                <group>
+                                    <group string="Weightage Distributed from Objective Weightage">
+                                        <div class="text-muted">
+                                            Available Weightage:
+                                            <field name="performance_available_dept" readonly="1" class="oe_inline"/> %
+                                        </div>
+                                    </group>
+                                    <group string="Currently Distributed">
+                                        <div class="text-muted">
+                                            Total Distributed:
+                                            <field name="performance_dept_distributed" readonly="1" class="oe_inline"
+                                                decoration-danger="performance_dept_distributed &gt; performance_available_dept"
+                                                decoration-success="performance_dept_distributed &lt;= performance_available_dept"/> %
+                                        </div>
+                                    </group>
+                                </group>
                                 
                                 <field name="performance_dept_line_ids" nolabel="1" readonly="is_synced">
                                     <list editable="bottom" decoration-success="progress &gt;= 100" decoration-info="progress &gt;= 75 and progress &lt; 100" decoration-warning="progress &gt;= 50 and progress &lt; 75" decoration-danger="progress &lt; 50">
@@ -147,21 +189,34 @@
                                         <field name="objective_breakdown"/>
                                         <field name="priority" decoration-danger="priority == 'high'" decoration-warning="priority == 'medium'" decoration-info="priority == 'low'"/>
                                         <field name="team_id"/>
+                                        <!-- <field name="available_weightage" readonly="1"/> -->
                                         <field name="metric"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
                                         <field name="progress" widget="progressbar"/>
-                                        <field name="distributed_weightage"/>
+                                        <field name="distributed_weightage" sum="Total Distributed %"/>
                                     </list>
                                 </field>
                             </group>
                             
                             <!-- Role Performance -->
                             <group string="Role Criteria Table" name="role_performance">
-                                <div class="d-flex justify-content-end mb-2">
-                                    <div class="text-muted me-4">Available Weightage: <field name="performance_available_role" readonly="1" class="oe_inline"/> %</div>
-                                    <div class="text-muted">Currently Distributed: <field name="performance_role_distributed" readonly="1" class="oe_inline"/> %</div>
-                                </div>
+                                <group>
+                                    <group string="Weightage Distributed from Objective Weightage">
+                                        <div class="text-muted">
+                                            Available Weightage:
+                                            <field name="performance_available_role" readonly="1" class="oe_inline"/> %
+                                        </div>
+                                    </group>
+                                    <group string="Currently Distributed">
+                                        <div class="text-muted">
+                                            Total Distributed:
+                                            <field name="performance_role_distributed" readonly="1" class="oe_inline"
+                                                decoration-danger="performance_role_distributed &gt; performance_available_role"
+                                                decoration-success="performance_role_distributed &lt;= performance_available_role"/> %
+                                        </div>
+                                    </group>
+                                </group>
                                 
                                 <field name="performance_role_line_ids" nolabel="1" readonly="is_synced">
                                     <list editable="bottom" decoration-success="progress &gt;= 100" decoration-info="progress &gt;= 75 and progress &lt; 100" decoration-warning="progress &gt;= 50 and progress &lt; 75" decoration-danger="progress &lt; 50">
@@ -169,6 +224,7 @@
                                         <field name="objective_breakdown"/>
                                         <field name="priority" decoration-danger="priority == 'high'" decoration-warning="priority == 'medium'" decoration-info="priority == 'low'"/>
                                         <field name="team_id"/>
+                                        <!-- <field name="available_weightage" readonly="1"/> -->
                                         <field name="metric"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
@@ -180,17 +236,30 @@
 
                             <!-- Common Performance -->
                             <group string="Common Criteria Table" name="common_performance">
-                                <div class="d-flex justify-content-end mb-2">
-                                    <div class="text-muted me-4">Available Weightage: <field name="performance_available_common" readonly="1" class="oe_inline"/> %</div>
-                                    <div class="text-muted">Currently Distributed: <field name="performance_common_distributed" readonly="1" class="oe_inline"/> %</div>
-                                </div>
-                                
+                                <group>
+                                    <group string="Weightage Distributed from Objective Weightage">
+                                        <div class="text-muted">
+                                            Available Weightage:
+                                            <field name="performance_available_common" readonly="1" class="oe_inline"/> %
+                                        </div>
+                                    </group>
+                                    <group string="Currently Distributed">
+                                        <div class="text-muted">
+                                            Total Distributed:
+                                            <field name="performance_common_distributed" readonly="1" class="oe_inline"
+                                                decoration-danger="performance_common_distributed &gt; performance_available_common"
+                                                decoration-success="performance_common_distributed &lt;= performance_available_common"/> %
+                                        </div>
+                                    </group>
+                                </group>
+
                                 <field name="performance_common_line_ids" nolabel="1" readonly="is_synced">
                                     <list editable="bottom" decoration-success="progress &gt;= 100" decoration-info="progress &gt;= 75 and progress &lt; 100" decoration-warning="progress &gt;= 50 and progress &lt; 75" decoration-danger="progress &lt; 50">
                                         <field name="sequence" widget="handle"/>
                                         <field name="objective_breakdown"/>
                                         <field name="priority" decoration-danger="priority == 'high'" decoration-warning="priority == 'medium'" decoration-info="priority == 'low'"/>
                                         <field name="team_id"/>
+                                        <!-- <field name="available_weightage" readonly="1"/> -->
                                         <field name="metric"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
@@ -205,29 +274,72 @@
                             <!-- Potential Weightage Distribution -->
                             <group string="Weightage Distribution" name="potential_weightage" class="alert alert-info">
                                 <group>
-                                    <div class="row">
-                                        <div class="col-4">Available Department: <field name="potential_available_dept" readonly="1"/> %</div>
-                                        <div class="col-4">Available Role: <field name="potential_available_role" readonly="1"/> %</div>
-                                        <div class="col-4">Available Common: <field name="potential_available_common" readonly="1"/> %</div>
-                                    </div>
+                                    <group string="Weightage Distributed">
+                                        <label for="potential_split" string="Available Weightage"/>
+                                        <div>
+                                            <span>Dept: <field name="potential_split" readonly="1" class="oe_inline"/> %</span> |
+                                            <span>Role: <field name="role_weightage" readonly="1" class="oe_inline"/> %</span> |
+                                            <span>Common: <field name="common_weightage" readonly="1" class="oe_inline"/> %</span>
+                                        </div>
+                                    </group>
+                                    <group string="Allocated to Teams">
+                                        <label for="potential_dept_distributed" string="Currently Allocated"/>
+                                        <div>
+                                            <span>Dept: <field name="potential_dept_distributed" readonly="1" class="oe_inline"
+                                                decoration-danger="potential_dept_distributed &gt; potential_split"
+                                                decoration-success="potential_dept_distributed &lt;= potential_split"/> %</span> |
+                                            <span>Role: <field name="potential_role_distributed" readonly="1" class="oe_inline"
+                                                decoration-danger="potential_role_distributed &gt; role_weightage"
+                                                decoration-success="potential_role_distributed &lt;= role_weightage"/> %</span> |
+                                            <span>Common: <field name="potential_common_distributed" readonly="1" class="oe_inline"/> %</span>
+                                        </div>
+                                    </group>
                                 </group>
+                                
                                 <field name="potential_weightage_ids" nolabel="1">
                                     <list editable="bottom">
                                         <field name="sequence" widget="handle"/>
-                                        <field name="team_id"/>
-                                        <field name="department_weightage" sum="Total Department"/>
-                                        <field name="role_weightage" sum="Total Role"/>
-                                        <field name="common_weightage" sum="Total Common"/>
+                                        <field name="team_id" options="{'no_create': True, 'no_open': True}"
+                                            domain="[('company_id', '=', parent.company_id), 
+                                                    ('department_id', '=', parent.department_id)]"
+                                            width="200"/>
+                                        <field name="department_weightage" 
+                                            sum="Total Dept %"
+                                            decoration-danger="department_weightage &gt; 0 and parent.potential_dept_distributed &gt; parent.potential_split"
+                                            width="150"/>
+                                        <field name="role_weightage" 
+                                            sum="Total Role %"
+                                            decoration-danger="role_weightage &gt; 0 and parent.potential_role_distributed &gt; parent.role_weightage"
+                                            width="150"/>
+                                        <field name="common_weightage" 
+                                            sum="Total Common %"
+                                            readonly="1"
+                                            force_save="1"
+                                            decoration-danger="common_weightage &gt; 0 and parent.potential_common_distributed &gt; parent.common_weightage"
+                                            width="150"/>
                                     </list>
                                 </field>
                             </group>
                             
                             <!-- Similar structure for Potential -->
                             <group string="Department Criteria Table" name="dept_potential">
-                                <div class="d-flex justify-content-end mb-2">
-                                    <div class="text-muted me-4">Available Weightage: <field name="potential_available_dept" readonly="1" class="oe_inline"/> %</div>
-                                    <div class="text-muted">Currently Distributed: <field name="potential_dept_distributed" readonly="1" class="oe_inline"/> %</div>
-                                </div>
+                                <group>
+                                    <group string="Weightage Distributed from Objective Weightage">
+                                        <div class="text-muted">
+                                            Available Weightage:
+                                            <field name="potential_available_dept" readonly="1" class="oe_inline"/> %
+                                        </div>
+                                    </group>
+                                    <group string="Currently Distributed">
+                                        <div class="text-muted">
+                                            Total Distributed:
+                                            <field name="potential_dept_distributed" readonly="1" class="oe_inline"
+                                                decoration-danger="potential_dept_distributed &gt; potential_available_dept"
+                                                decoration-success="potential_dept_distributed &lt;= potential_available_dept"/> %
+                                        </div>
+                                    </group>
+                                </group>
+
                                 
                                 <field name="potential_dept_line_ids" nolabel="1">
                                     <list editable="bottom" decoration-success="progress &gt;= 100" decoration-info="progress &gt;= 75 and progress &lt; 100" decoration-warning="progress &gt;= 50 and progress &lt; 75" decoration-danger="progress &lt; 50">
@@ -235,6 +347,7 @@
                                         <field name="objective_breakdown"/>
                                         <field name="priority" decoration-danger="priority == 'high'" decoration-warning="priority == 'medium'" decoration-info="priority == 'low'"/>
                                         <field name="team_id"/>
+                                        <!-- <field name="available_weightage" readonly="1"/> -->
                                         <field name="metric"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
@@ -245,10 +358,23 @@
                             </group>
                             
                             <group string="Role Criteria Table" name="role_potential">
-                                <div class="d-flex justify-content-end mb-2">
-                                    <div class="text-muted me-4">Available Weightage: <field name="potential_available_role" readonly="1" class="oe_inline"/> %</div>
-                                    <div class="text-muted">Currently Distributed: <field name="potential_role_distributed" readonly="1" class="oe_inline"/> %</div>
-                                </div>
+                                <group>
+                                    <group string="Weightage Distributed from Objective Weightage">
+                                        <div class="text-muted">
+                                            Available Weightage:
+                                            <field name="potential_available_role" readonly="1" class="oe_inline"/> %
+                                        </div>
+                                    </group>
+                                    <group string="Currently Distributed">
+                                        <div class="text-muted">
+                                            Total Distributed:
+                                            <field name="potential_role_distributed" readonly="1" class="oe_inline"
+                                                decoration-danger="potential_role_distributed &gt; potential_available_role"
+                                                decoration-success="potential_role_distributed &lt;= potential_available_role"/> %
+                                        </div>
+                                    </group>
+                                </group>
+
                                 
                                 <field name="potential_role_line_ids" nolabel="1">
                                     <list editable="bottom" decoration-success="progress &gt;= 100" decoration-info="progress &gt;= 75 and progress &lt; 100" decoration-warning="progress &gt;= 50 and progress &lt; 75" decoration-danger="progress &lt; 50">
@@ -256,6 +382,7 @@
                                         <field name="objective_breakdown"/>
                                         <field name="priority" decoration-danger="priority == 'high'" decoration-warning="priority == 'medium'" decoration-info="priority == 'low'"/>
                                         <field name="team_id"/>
+                                        <!-- <field name="available_weightage" readonly="1"/> -->
                                         <field name="metric"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
@@ -266,10 +393,23 @@
                             </group>
 
                             <group string="Common Criteria Table" name="common_potential">
-                                <div class="d-flex justify-content-end mb-2">
-                                    <div class="text-muted me-4">Available Weightage: <field name="potential_available_common" readonly="1" class="oe_inline"/> %</div>
-                                    <div class="text-muted">Currently Distributed: <field name="potential_common_distributed" readonly="1" class="oe_inline"/> %</div>
-                                </div>
+                                <group>
+                                    <group string="Weightage Distributed from Objective Weightage">
+                                        <div class="text-muted">
+                                            Available Weightage:
+                                            <field name="potential_available_common" readonly="1" class="oe_inline"/> %
+                                        </div>
+                                    </group>
+                                    <group string="Currently Distributed">
+                                        <div class="text-muted">
+                                            Total Distributed:
+                                            <field name="potential_common_distributed" readonly="1" class="oe_inline"
+                                                decoration-danger="potential_common_distributed &gt; potential_available_common"
+                                                decoration-success="potential_common_distributed &lt;= potential_available_common"/> %
+                                        </div>
+                                    </group>
+                                </group>
+
                                 
                                 <field name="potential_common_line_ids" nolabel="1">
                                     <list editable="bottom" decoration-success="progress &gt;= 100" decoration-info="progress &gt;= 75 and progress &lt; 100" decoration-warning="progress &gt;= 50 and progress &lt; 75" decoration-danger="progress &lt; 50">
@@ -277,6 +417,7 @@
                                         <field name="objective_breakdown"/>
                                         <field name="priority" decoration-danger="priority == 'high'" decoration-warning="priority == 'medium'" decoration-info="priority == 'low'"/>
                                         <field name="team_id"/>
+                                        <!-- <field name="available_weightage" readonly="1"/> -->
                                         <field name="metric"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>

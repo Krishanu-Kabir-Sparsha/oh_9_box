@@ -133,24 +133,34 @@ class OHAppraisalNineboxTemplate(models.Model):
                 'dept_weightage', 'role_weightage', 'common_weightage')
     def _compute_available_weightages(self):
         for record in self:
-            # Performance available
+            # Performance
+            record.performance_available_dept = record.performance_split
+            record.performance_available_role = record.role_weightage
+            record.performance_available_common = record.common_weightage
+            
+            # Get allocated
             perf_allocated_dept = sum(record.performance_weightage_ids.mapped('department_weightage'))
             perf_allocated_role = sum(record.performance_weightage_ids.mapped('role_weightage'))
-            perf_allocated_common = sum(record.performance_weightage_ids.mapped('common_weightage'))
+            
+            # Update available by subtracting allocated
+            record.performance_available_dept -= perf_allocated_dept
+            record.performance_available_role -= perf_allocated_role
 
-            record.performance_available_dept = record.performance_split - perf_allocated_dept
-            record.performance_available_role = record.role_weightage - perf_allocated_role
-            record.performance_available_common = record.common_weightage - perf_allocated_common
-
-            # Potential available
+            # Potential (similar logic)
+            record.potential_available_dept = record.potential_split
+            record.potential_available_role = record.role_weightage
+            record.potential_available_common = record.common_weightage
+            
             pot_allocated_dept = sum(record.potential_weightage_ids.mapped('department_weightage'))
             pot_allocated_role = sum(record.potential_weightage_ids.mapped('role_weightage'))
-            pot_allocated_common = sum(record.potential_weightage_ids.mapped('common_weightage'))
+            
+            record.potential_available_dept -= pot_allocated_dept
+            record.potential_available_role -= pot_allocated_role
 
-            record.potential_available_dept = record.potential_split - pot_allocated_dept
-            record.potential_available_role = record.role_weightage - pot_allocated_role
-            record.potential_available_common = record.common_weightage - pot_allocated_common
-
+    def _ensure_common_weightage_distribution(self):
+        """Trigger recomputation of common weightage"""
+        self.mapped('performance_weightage_ids')._compute_common_weightage()
+        self.mapped('potential_weightage_ids')._compute_common_weightage()
 
     # @api.depends('dept_weightage', 'performance_split', 'potential_split')
     # def _compute_split_weightages(self):
@@ -423,20 +433,224 @@ class OHAppraisalNineboxTemplate(models.Model):
         compute='_compute_potential_distributed'
     )
 
-    @api.depends('performance_dept_line_ids.distributed_weightage')
+    @api.depends('performance_weightage_ids.department_weightage',
+            'performance_weightage_ids.role_weightage',
+            'performance_weightage_ids.common_weightage')
     def _compute_performance_distributed(self):
         for record in self:
-            record.performance_dept_distributed = sum(record.performance_dept_line_ids.mapped('distributed_weightage'))
-            record.performance_role_distributed = sum(record.performance_role_line_ids.mapped('distributed_weightage'))
-            record.performance_common_distributed = sum(record.performance_common_line_ids.mapped('distributed_weightage'))
+            record.performance_dept_distributed = sum(record.performance_weightage_ids.mapped('department_weightage'))
+            record.performance_role_distributed = sum(record.performance_weightage_ids.mapped('role_weightage'))
+            record.performance_common_distributed = sum(record.performance_weightage_ids.mapped('common_weightage'))
 
-    @api.depends('potential_dept_line_ids.distributed_weightage')
+    @api.constrains('performance_weightage_ids')
+    def _check_performance_weightage_limits(self):
+        for record in self:
+            total_dept = sum(record.performance_weightage_ids.mapped('department_weightage'))
+            total_role = sum(record.performance_weightage_ids.mapped('role_weightage'))
+            total_common = sum(record.performance_weightage_ids.mapped('common_weightage'))
+
+            if total_dept > record.performance_split:
+                raise ValidationError(_('Total department weightage cannot exceed %s%%') % record.performance_split)
+            if total_role > record.role_weightage:
+                raise ValidationError(_('Total role weightage cannot exceed %s%%') % record.role_weightage)
+            if total_common > record.common_weightage:
+                raise ValidationError(_('Total common weightage cannot exceed %s%%') % record.common_weightage)
+
+    @api.depends('potential_weightage_ids.department_weightage',
+            'potential_weightage_ids.role_weightage',
+            'potential_weightage_ids.common_weightage')
     def _compute_potential_distributed(self):
         for record in self:
-            record.potential_dept_distributed = sum(record.potential_dept_line_ids.mapped('distributed_weightage'))
-            record.potential_role_distributed = sum(record.potential_role_line_ids.mapped('distributed_weightage'))
-            record.potential_common_distributed = sum(record.potential_common_line_ids.mapped('distributed_weightage'))
+            record.potential_dept_distributed = sum(record.potential_weightage_ids.mapped('department_weightage'))
+            record.potential_role_distributed = sum(record.potential_weightage_ids.mapped('role_weightage'))
+            record.potential_common_distributed = sum(record.potential_weightage_ids.mapped('common_weightage'))
 
+    @api.constrains('potential_weightage_ids')
+    def _check_potential_weightage_limits(self):
+        for record in self:
+            total_dept = sum(record.potential_weightage_ids.mapped('department_weightage'))
+            total_role = sum(record.potential_weightage_ids.mapped('role_weightage'))
+            total_common = sum(record.potential_weightage_ids.mapped('common_weightage'))
+
+            if total_dept > record.potential_split:
+                raise ValidationError(_('Total department weightage cannot exceed %s%%') % record.potential_split)
+            if total_role > record.role_weightage:
+                raise ValidationError(_('Total role weightage cannot exceed %s%%') % record.role_weightage)
+            if total_common > record.common_weightage:
+                raise ValidationError(_('Total common weightage cannot exceed %s%%') % record.common_weightage)
+
+
+    def get_team_weightage(self, team_id, category, type='performance'):
+        """Get weightage for a specific team and category"""
+        weightage_lines = self.performance_weightage_ids if type == 'performance' else self.potential_weightage_ids
+        team_weightage = weightage_lines.filtered(lambda r: r.team_id.id == team_id)
+        
+        if team_weightage:
+            if category == 'department':
+                return team_weightage[0].department_weightage
+            elif category == 'role':
+                return team_weightage[0].role_weightage
+            else:  # common
+                return team_weightage[0].common_weightage
+        return 0.0
+    
+    def _get_team_distributed_weightage(self, team_id, category, type='performance'):
+        """Get total distributed weightage for a team in a category"""
+        if type == 'performance':
+            if category == 'department':
+                lines = self.performance_dept_line_ids
+            elif category == 'role':
+                lines = self.performance_role_line_ids
+            else:
+                lines = self.performance_common_line_ids
+        else:
+            if category == 'department':
+                lines = self.potential_dept_line_ids
+            elif category == 'role':
+                lines = self.potential_role_line_ids
+            else:
+                lines = self.potential_common_line_ids
+
+        team_lines = lines.filtered(lambda r: r.team_id.id == team_id)
+        return sum(team_lines.mapped('distributed_weightage'))
+
+
+    # Computed fields for summary display
+    get_team_available_weightage = fields.Float(
+        'Team Available Weightage',
+        compute='_compute_team_weightages'
+    )
+    get_team_total_distributed = fields.Float(
+        'Team Total Distributed',
+        compute='_compute_team_weightages'
+    )
+
+    @api.depends('performance_weightage_ids', 'potential_weightage_ids',
+                'performance_dept_line_ids.distributed_weightage',
+                'performance_dept_line_ids.team_id',
+                'potential_dept_line_ids.distributed_weightage',
+                'potential_dept_line_ids.team_id')
+    def _compute_team_weightages(self):
+        for record in self:
+            current_team = self._context.get('current_team_id')
+            current_type = self._context.get('current_type', 'performance')
+            current_category = self._context.get('current_category', 'department')
+
+            if current_team:
+                # Get available weightage from distribution table
+                weightage_lines = record.performance_weightage_ids if current_type == 'performance' else record.potential_weightage_ids
+                team_weightage = weightage_lines.filtered(lambda r: r.team_id.id == current_team)
+                
+                if team_weightage:
+                    if current_category == 'department':
+                        record.get_team_available_weightage = team_weightage[0].department_weightage
+                    elif current_category == 'role':
+                        record.get_team_available_weightage = team_weightage[0].role_weightage
+                    else:  # common
+                        record.get_team_available_weightage = team_weightage[0].common_weightage
+                else:
+                    record.get_team_available_weightage = 0.0
+
+                # Get total distributed for this team
+                if current_type == 'performance':
+                    if current_category == 'department':
+                        lines = record.performance_dept_line_ids
+                    elif current_category == 'role':
+                        lines = record.performance_role_line_ids
+                    else:
+                        lines = record.performance_common_line_ids
+                else:
+                    if current_category == 'department':
+                        lines = record.potential_dept_line_ids
+                    elif current_category == 'role':
+                        lines = record.potential_role_line_ids
+                    else:
+                        lines = record.potential_common_line_ids
+
+                team_lines = lines.filtered(lambda r: r.team_id.id == current_team)
+                record.get_team_total_distributed = sum(team_lines.mapped('distributed_weightage'))
+            else:
+                record.get_team_available_weightage = 0.0
+                record.get_team_total_distributed = 0.0
+
+    @api.onchange('performance_dept_line_ids.team_id', 'performance_dept_line_ids.distributed_weightage',
+                'potential_dept_line_ids.team_id', 'potential_dept_line_ids.distributed_weightage')
+    def _onchange_line_weightages(self):
+        """Update context when team changes in criteria tables"""
+        if self.env.context.get('current_view_type') == 'form':
+            return {'context': {
+                'current_team_id': self.env.context.get('current_team_id'),
+                'current_type': self.env.context.get('current_type'),
+                'current_category': self.env.context.get('current_category')
+            }}
+
+
+    @api.model
+    def create(self, vals):
+        record = super().create(vals)
+        record._ensure_common_weightage_distribution()
+        return record
+
+    def write(self, vals):
+        res = super().write(vals)
+        if any(f in vals for f in ['common_weightage', 'performance_weightage_ids', 'potential_weightage_ids']):
+            self._ensure_common_weightage_distribution()
+        return res
+
+    def _redistribute_common_weightage(self):
+        """Redistribute common weightage equally among teams."""
+        for record in self:
+            # For Performance
+            perf_teams = record.performance_weightage_ids
+            if perf_teams:
+                weight_per_team = record.common_weightage / len(perf_teams)
+                weight_per_team = round(weight_per_team, 2)
+                
+                # Update all weightage records
+                perf_teams.write({'common_weightage': weight_per_team})
+                
+                # Handle any rounding discrepancy with the first record
+                total_allocated = sum(perf_teams.mapped('common_weightage'))
+                if abs(total_allocated - record.common_weightage) > 0.01:
+                    difference = record.common_weightage - total_allocated
+                    perf_teams[0].write({
+                        'common_weightage': perf_teams[0].common_weightage + round(difference, 2)
+                    })
+
+            # For Potential
+            pot_teams = record.potential_weightage_ids
+            if pot_teams:
+                weight_per_team = record.common_weightage / len(pot_teams)
+                weight_per_team = round(weight_per_team, 2)
+                
+                # Update all weightage records
+                pot_teams.write({'common_weightage': weight_per_team})
+                
+                # Handle any rounding discrepancy with the first record
+                total_allocated = sum(pot_teams.mapped('common_weightage'))
+                if abs(total_allocated - record.common_weightage) > 0.01:
+                    difference = record.common_weightage - total_allocated
+                    pot_teams[0].write({
+                        'common_weightage': pot_teams[0].common_weightage + round(difference, 2)
+                    })
+
+    @api.onchange('performance_weightage_ids', 'potential_weightage_ids')
+    def _onchange_weightage_ids(self):
+        """Trigger common weightage recalculation on team changes"""
+        self._ensure_common_weightage_distribution()
+
+    @api.constrains('performance_weightage_ids', 'potential_weightage_ids')
+    def _check_common_weightage_totals(self):
+        for record in self:
+            # Check Performance
+            perf_common_total = sum(record.performance_weightage_ids.mapped('common_weightage'))
+            if abs(perf_common_total - record.common_weightage) > 0.01:
+                record._ensure_common_weightage_distribution()
+
+            # Check Potential
+            pot_common_total = sum(record.potential_weightage_ids.mapped('common_weightage'))
+            if abs(pot_common_total - record.common_weightage) > 0.01:
+                record._ensure_common_weightage_distribution()
 
 class OHAppraisalNineboxPerformanceLine(models.Model):
     _name = 'oh.appraisal.ninebox.performance.line'
@@ -487,6 +701,86 @@ class OHAppraisalNineboxPerformanceLine(models.Model):
 
             if current > available:
                 raise ValidationError(_('Total distributed weightage cannot exceed available weightage of %s%%') % available)
+
+
+    @api.onchange('team_id')
+    def _onchange_team_id(self):
+        if self.team_id:
+            weightage_line = self.template_id.performance_weightage_ids.filtered(
+                lambda r: r.team_id.id == self.team_id.id
+            )
+            if weightage_line:
+                if self.category == 'department':
+                    self.available_weightage = weightage_line[0].department_weightage
+                elif self.category == 'role':
+                    self.available_weightage = weightage_line[0].role_weightage
+                else:  # common
+                    self.available_weightage = weightage_line[0].common_weightage
+            else:
+                self.available_weightage = 0.0
+
+    available_weightage = fields.Float(
+        'Available Weightage (%)', 
+        compute='_compute_team_weightage',
+        store=True
+    )
+    
+    @api.depends('team_id', 'category', 'template_id.performance_weightage_ids.department_weightage',
+                'template_id.performance_weightage_ids.role_weightage',
+                'template_id.performance_weightage_ids.common_weightage')
+    def _compute_team_weightage(self):
+        for record in self:
+            if record.team_id:
+                team_weightage = record.template_id.performance_weightage_ids.filtered(
+                    lambda r: r.team_id == record.team_id
+                )
+                if team_weightage:
+                    if record.category == 'department':
+                        record.available_weightage = team_weightage[0].department_weightage
+                    elif record.category == 'role':
+                        record.available_weightage = team_weightage[0].role_weightage
+                    else:  # common
+                        record.available_weightage = team_weightage[0].common_weightage
+                else:
+                    record.available_weightage = 0.0
+            else:
+                record.available_weightage = 0.0
+
+    @api.constrains('distributed_weightage', 'team_id')
+    def _check_team_weightage_distribution(self):
+        for record in self:
+            if not record.team_id:
+                continue
+
+            # Get team's available weightage
+            weightage_line = record.template_id.performance_weightage_ids.filtered(
+                lambda r: r.team_id == record.team_id
+            )
+            if not weightage_line:
+                continue
+
+            available = 0.0
+            if record.category == 'department':
+                available = weightage_line[0].department_weightage
+            elif record.category == 'role':
+                available = weightage_line[0].role_weightage
+            else:
+                available = weightage_line[0].common_weightage
+
+            # Get total distributed for this team
+            domain = [
+                ('template_id', '=', record.template_id.id),
+                ('team_id', '=', record.team_id.id),
+                ('category', '=', record.category),
+                ('id', '!=', record.id)
+            ]
+            other_lines = self.search(domain)
+            total_distributed = sum(other_lines.mapped('distributed_weightage')) + record.distributed_weightage
+
+            if total_distributed > available:
+                raise ValidationError(_(
+                    'Total distributed weightage for team %s cannot exceed %s%%'
+                ) % (record.team_id.name, available))
 
 class OHAppraisalNineboxPotentialLine(models.Model):
     _name = 'oh.appraisal.ninebox.potential.line'
@@ -539,6 +833,85 @@ class OHAppraisalNineboxPotentialLine(models.Model):
                 raise ValidationError(_('Total distributed weightage cannot exceed available weightage of %s%%') % available)
 
 
+    @api.onchange('team_id')
+    def _onchange_team_id(self):
+        if self.team_id:
+            weightage_line = self.template_id.potential_weightage_ids.filtered(
+                lambda r: r.team_id.id == self.team_id.id
+            )
+            if weightage_line:
+                if self.category == 'department':
+                    self.available_weightage = weightage_line[0].department_weightage
+                elif self.category == 'role':
+                    self.available_weightage = weightage_line[0].role_weightage
+                else:  # common
+                    self.available_weightage = weightage_line[0].common_weightage
+            else:
+                self.available_weightage = 0.0
+
+    available_weightage = fields.Float(
+        'Available Weightage (%)', 
+        compute='_compute_team_weightage',
+        store=True
+    )
+    
+    @api.depends('team_id', 'category', 'template_id.potential_weightage_ids.department_weightage',
+                'template_id.potential_weightage_ids.role_weightage',
+                'template_id.potential_weightage_ids.common_weightage')
+    def _compute_team_weightage(self):
+        for record in self:
+            if record.team_id:
+                team_weightage = record.template_id.potential_weightage_ids.filtered(
+                    lambda r: r.team_id == record.team_id
+                )
+                if team_weightage:
+                    if record.category == 'department':
+                        record.available_weightage = team_weightage[0].department_weightage
+                    elif record.category == 'role':
+                        record.available_weightage = team_weightage[0].role_weightage
+                    else:  # common
+                        record.available_weightage = team_weightage[0].common_weightage
+                else:
+                    record.available_weightage = 0.0
+            else:
+                record.available_weightage = 0.0
+
+    @api.constrains('distributed_weightage', 'team_id')
+    def _check_team_weightage_distribution(self):
+        for record in self:
+            if not record.team_id:
+                continue
+
+            # Get team's available weightage
+            weightage_line = record.template_id.potential_weightage_ids.filtered(
+                lambda r: r.team_id == record.team_id
+            )
+            if not weightage_line:
+                continue
+
+            available = 0.0
+            if record.category == 'department':
+                available = weightage_line[0].department_weightage
+            elif record.category == 'role':
+                available = weightage_line[0].role_weightage
+            else:
+                available = weightage_line[0].common_weightage
+
+            # Get total distributed for this team
+            domain = [
+                ('template_id', '=', record.template_id.id),
+                ('team_id', '=', record.team_id.id),
+                ('category', '=', record.category),
+                ('id', '!=', record.id)
+            ]
+            other_lines = self.search(domain)
+            total_distributed = sum(other_lines.mapped('distributed_weightage')) + record.distributed_weightage
+
+            if total_distributed > available:
+                raise ValidationError(_(
+                    'Total distributed weightage for team %s cannot exceed %s%%'
+                ) % (record.team_id.name, available))
+
 class OHAppraisalNineboxWeightage(models.Model):
     _name = 'oh.appraisal.ninebox.weightage'
     _description = 'Nine Box Weightage Distribution'
@@ -554,31 +927,37 @@ class OHAppraisalNineboxWeightage(models.Model):
 
     department_weightage = fields.Float('Department Weightage (%)')
     role_weightage = fields.Float('Role Weightage (%)')
-    common_weightage = fields.Float('Common Weightage (%)')
+    common_weightage = fields.Float(
+        'Common Weightage (%)', 
+        compute='_compute_common_weightage',
+        store=True
+    )
 
-    @api.constrains('department_weightage', 'role_weightage', 'common_weightage')
-    def _check_weightage_limits(self):
+    @api.depends('template_id.common_weightage', 
+                'template_id.performance_weightage_ids', 
+                'template_id.potential_weightage_ids', 
+                'type')
+    def _compute_common_weightage(self):
         for record in self:
-            # Get available weightages
-            available_dept = record.template_id.performance_split if record.type == 'performance' else record.template_id.potential_split
-            available_role = record.template_id.role_weightage
-            available_common = record.template_id.common_weightage
+            if record.template_id and record.template_id.common_weightage:
+                weightage_records = (record.template_id.performance_weightage_ids 
+                                   if record.type == 'performance' 
+                                   else record.template_id.potential_weightage_ids)
+                team_count = len(weightage_records)
+                if team_count > 0:
+                    common_per_team = record.template_id.common_weightage / team_count
+                    record.common_weightage = round(common_per_team, 2)
+                else:
+                    record.common_weightage = 0.0
+            else:
+                record.common_weightage = 0.0
 
-            # Get total allocated for each type
-            domain = [
-                ('template_id', '=', record.template_id.id),
-                ('type', '=', record.type),
-                ('id', '!=', record.id)
-            ]
-            other_records = self.search(domain)
-            total_dept = sum(other_records.mapped('department_weightage')) + record.department_weightage
-            total_role = sum(other_records.mapped('role_weightage')) + record.role_weightage
-            total_common = sum(other_records.mapped('common_weightage')) + record.common_weightage
+    @api.model
+    def create(self, vals):
+        return super().create(vals)
 
-            if total_dept > available_dept:
-                raise ValidationError(_('Total department weightage cannot exceed %s%%') % available_dept)
-            if total_role > available_role:
-                raise ValidationError(_('Total role weightage cannot exceed %s%%') % available_role)
-            if total_common > available_common:
-                raise ValidationError(_('Total common weightage cannot exceed %s%%') % available_common)
-            
+    def write(self, vals):
+        # Remove common_weightage from manual updates
+        if 'common_weightage' in vals:
+            del vals['common_weightage']
+        return super().write(vals)         
