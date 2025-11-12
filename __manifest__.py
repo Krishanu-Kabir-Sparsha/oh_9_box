@@ -25,12 +25,6 @@
         'views/ninebox_template_views.xml',
         'views/menu_views.xml',
     ],
-    'assets': {
-        'web.assets_backend': [
-            'oh_9_box/static/src/scss/ninebox_progress.scss',
-            'oh_9_box/static/src/js/ninebox_progress.js',
-        ],
-    },
     'license': 'LGPL-3',
     'installable': True,
     'application': False,

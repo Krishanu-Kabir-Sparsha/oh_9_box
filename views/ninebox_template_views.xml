@@ -27,8 +27,9 @@
             <form>
                 <sheet>
                     <div class="oe_title">
-                        <h1><field name="name"/></h1>
+                        <h1><field name="name" placeholder="Enter template name..."/></h1>
                     </div>
+
                     <group>
                         <group>
                             <field name="department_id"/>
@@ -80,6 +81,9 @@
                                 </div>
                             </div>
                         </group>
+                        <div class="text-muted">
+                            Split the department weightage between Performance and Potential assessments. Total split must not exceed the available department weightage.
+                        </div>
                     </group>
 
                     <notebook>
@@ -107,16 +111,8 @@
                                         invisible="not is_synced"/>
                             </div>
 
-                            
-                            
                             <!-- Performance Weightage Distribution -->
                             <group string="Weightage Distribution" name="performance_weightage" class="alert alert-info">
-                                <!-- Add a warning banner when synced -->
-                                <div class="alert alert-info" role="alert" invisible="not is_synced">
-                                    <i class="fa fa-info-circle"/> This template is currently synced with OKR Template. 
-                                    To make manual changes, please unsync first.
-                                </div>
-                                
                                 <group>
                                     <group string="Weightage Distributed">
                                         <label for="performance_split" string="Available Weightage"/>
@@ -134,12 +130,16 @@
                                             <span>Common: <field name="performance_allocated_common" readonly="1" class="oe_inline"/> %</span>
                                         </div>
                                     </group>
+                                    <div class="text-muted">
+                                        Select teams and allocate weightages for department, role, and common criteria. Common weightage is automatically distributed equally among teams.
+                                    </div>
                                 </group>
                                 
                                 <field name="performance_weightage_ids" nolabel="1">
                                     <list editable="bottom">
                                         <field name="sequence" widget="handle"/>
                                         <field name="team_id" options="{'no_create': True, 'no_open': True}"
+                                            placeholder="Select team..."
                                             domain="[('company_id', '=', parent.company_id), 
                                                     ('department_id', '=', parent.department_id)]"
                                             width="200"/>
@@ -161,7 +161,7 @@
                             <!-- Department Performance -->
                             <group string="Department Criteria Table" name="dept_performance">
                                 <group>
-                                    <group string="WEIGHTAGE DISTRIBUTED FROM OBJECTIVE WEIGHTAGE">
+                                    <group string="From Weightage Distribution">
                                         <div>
                                             Available Weightage: <field name="performance_dept_available" readonly="1" class="oe_inline"/> %
                                         </div>
@@ -176,17 +176,20 @@
                                 </group>
                                 
                                 <field name="performance_dept_line_ids" nolabel="1" readonly="is_synced">
-                                    <list editable="bottom" decoration-success="progress &gt;= 100" decoration-info="progress &gt;= 75 and progress &lt; 100" decoration-warning="progress &gt;= 50 and progress &lt; 75" decoration-danger="progress &lt; 50">
+                                    <list editable="bottom" class="o_ninebox_list">
                                         <field name="sequence" widget="handle"/>
                                         <field name="objective_breakdown"/>
                                         <field name="priority" decoration-danger="priority == 'high'" decoration-warning="priority == 'medium'" decoration-info="priority == 'low'"/>
                                         <field name="team_id" 
                                                 options="{'no_create': True, 'no_open': True}"
                                                 domain="[('company_id', '=', parent.company_id)]"/>
-                                        <field name="metric"/>
+                                        <field name="metric" 
+                                            options="{'no_open': True}"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
-                                        <field name="progress" widget="progressbar"/>
+                                        <field name="achieve" 
+                                            readonly="0"
+                                            help="Achievement status or assessment"/>
                                         <field name="distributed_weightage" sum="Total Distributed %"/>
                                     </list>
                                 </field>
@@ -195,7 +198,7 @@
                             <!-- Role Performance -->
                             <group string="Role Criteria Table" name="role_performance">
                                 <group>
-                                    <group string="WEIGHTAGE DISTRIBUTED FROM OBJECTIVE WEIGHTAGE">
+                                    <group string="From Weightage Distribution">
                                         <div>
                                             Available Weightage: <field name="performance_role_available" readonly="1" class="oe_inline"/> %
                                         </div>
@@ -210,17 +213,20 @@
                                 </group>
                                 
                                 <field name="performance_role_line_ids" nolabel="1" readonly="is_synced">
-                                    <list editable="bottom" decoration-success="progress &gt;= 100" decoration-info="progress &gt;= 75 and progress &lt; 100" decoration-warning="progress &gt;= 50 and progress &lt; 75" decoration-danger="progress &lt; 50">
+                                    <list editable="bottom" class="o_ninebox_list">
                                         <field name="sequence" widget="handle"/>
                                         <field name="objective_breakdown"/>
                                         <field name="priority" decoration-danger="priority == 'high'" decoration-warning="priority == 'medium'" decoration-info="priority == 'low'"/>
                                         <field name="team_id" 
                                                 options="{'no_create': True, 'no_open': True}"
                                                 domain="[('company_id', '=', parent.company_id)]"/>
-                                        <field name="metric"/>
+                                        <field name="metric" 
+                                            options="{'no_open': True}"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
-                                        <field name="progress" widget="progressbar"/>
+                                        <field name="achieve" 
+                                            readonly="0"
+                                            help="Achievement status or assessment"/>
                                         <field name="distributed_weightage" sum="Total Distributed %"/>
                                     </list>
                                 </field>
@@ -229,7 +235,7 @@
                             <!-- Common Performance -->
                             <group string="Common Criteria Table" name="common_performance">
                                 <group>
-                                    <group string="WEIGHTAGE DISTRIBUTED FROM OBJECTIVE WEIGHTAGE">
+                                    <group string="From Weightage Distribution">
                                         <div>
                                             Available Weightage: <field name="performance_common_available" readonly="1" class="oe_inline"/> %
                                         </div>
@@ -244,17 +250,20 @@
                                 </group>
 
                                 <field name="performance_common_line_ids" nolabel="1" readonly="is_synced">
-                                    <list editable="bottom" decoration-success="progress &gt;= 100" decoration-info="progress &gt;= 75 and progress &lt; 100" decoration-warning="progress &gt;= 50 and progress &lt; 75" decoration-danger="progress &lt; 50">
+                                    <list editable="bottom" class="o_ninebox_list">
                                         <field name="sequence" widget="handle"/>
                                         <field name="objective_breakdown"/>
                                         <field name="priority" decoration-danger="priority == 'high'" decoration-warning="priority == 'medium'" decoration-info="priority == 'low'"/>
                                         <field name="team_id" 
                                                 options="{'no_create': True, 'no_open': True}"
                                                 domain="[('company_id', '=', parent.company_id)]"/>
-                                        <field name="metric"/>
+                                        <field name="metric" 
+                                            options="{'no_open': True}"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
-                                        <field name="progress" widget="progressbar"/>
+                                        <field name="achieve" 
+                                            readonly="0"
+                                            help="Achievement status or assessment"/>
                                         <field name="distributed_weightage" sum="Total Distributed %"/>
                                     </list>
                                 </field>
@@ -308,7 +317,7 @@
                             <!-- Department Potential -->
                             <group string="Department Criteria Table" name="dept_potential">
                                 <group>
-                                    <group string="WEIGHTAGE DISTRIBUTED FROM OBJECTIVE WEIGHTAGE">
+                                    <group string="From Weightage Distribution">
                                         <div>
                                             Available Weightage: <field name="potential_dept_available" readonly="1" class="oe_inline"/> %
                                         </div>
@@ -324,17 +333,20 @@
 
                                 
                                 <field name="potential_dept_line_ids" nolabel="1">
-                                    <list editable="bottom" decoration-success="progress &gt;= 100" decoration-info="progress &gt;= 75 and progress &lt; 100" decoration-warning="progress &gt;= 50 and progress &lt; 75" decoration-danger="progress &lt; 50">
+                                    <list editable="bottom" class="o_ninebox_list">
                                         <field name="sequence" widget="handle"/>
                                         <field name="objective_breakdown"/>
                                         <field name="priority" decoration-danger="priority == 'high'" decoration-warning="priority == 'medium'" decoration-info="priority == 'low'"/>
                                         <field name="team_id" 
                                                 options="{'no_create': True, 'no_open': True}"
                                                 domain="[('company_id', '=', parent.company_id)]"/>
-                                        <field name="metric"/>
+                                        <field name="metric" 
+                                            options="{'no_open': True}"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
-                                        <field name="progress" widget="progressbar"/>
+                                        <field name="achieve" 
+                                            readonly="0"
+                                            help="Achievement status or assessment"/>
                                         <field name="distributed_weightage" sum="Total Distributed %"/>
                                     </list>
                                 </field>
@@ -343,7 +355,7 @@
                             <!-- Role Potential -->
                             <group string="Role Criteria Table" name="role_potential">
                                 <group>
-                                    <group string="WEIGHTAGE DISTRIBUTED FROM OBJECTIVE WEIGHTAGE">
+                                    <group string="From Weightage Distribution">
                                         <div>
                                             Available Weightage: <field name="potential_role_available" readonly="1" class="oe_inline"/> %
                                         </div>
@@ -359,17 +371,20 @@
 
                                 
                                 <field name="potential_role_line_ids" nolabel="1">
-                                    <list editable="bottom" decoration-success="progress &gt;= 100" decoration-info="progress &gt;= 75 and progress &lt; 100" decoration-warning="progress &gt;= 50 and progress &lt; 75" decoration-danger="progress &lt; 50">
+                                    <list editable="bottom" class="o_ninebox_list">
                                         <field name="sequence" widget="handle"/>
                                         <field name="objective_breakdown"/>
                                         <field name="priority" decoration-danger="priority == 'high'" decoration-warning="priority == 'medium'" decoration-info="priority == 'low'"/>
                                         <field name="team_id" 
                                                 options="{'no_create': True, 'no_open': True}"
                                                 domain="[('company_id', '=', parent.company_id)]"/>
-                                        <field name="metric"/>
+                                        <field name="metric" 
+                                            options="{'no_open': True}"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
-                                        <field name="progress" widget="progressbar"/>
+                                        <field name="achieve" 
+                                            readonly="0"
+                                            help="Achievement status or assessment"/>
                                         <field name="distributed_weightage" sum="Total Distributed %"/>
                                     </list>
                                 </field>
@@ -378,7 +393,7 @@
                             <!-- Common Potential -->
                             <group string="Common Criteria Table" name="common_potential">
                                 <group>
-                                    <group string="WEIGHTAGE DISTRIBUTED FROM OBJECTIVE WEIGHTAGE">
+                                    <group string="From Weightage Distribution">
                                         <div>
                                             Available Weightage: <field name="potential_common_available" readonly="1" class="oe_inline"/> %
                                         </div>
@@ -394,17 +409,20 @@
 
                                 
                                 <field name="potential_common_line_ids" nolabel="1">
-                                    <list editable="bottom" decoration-success="progress &gt;= 100" decoration-info="progress &gt;= 75 and progress &lt; 100" decoration-warning="progress &gt;= 50 and progress &lt; 75" decoration-danger="progress &lt; 50">
+                                    <list editable="bottom" class="o_ninebox_list">
                                         <field name="sequence" widget="handle"/>
                                         <field name="objective_breakdown"/>
                                         <field name="priority" decoration-danger="priority == 'high'" decoration-warning="priority == 'medium'" decoration-info="priority == 'low'"/>
                                         <field name="team_id" 
                                                 options="{'no_create': True, 'no_open': True}"
                                                 domain="[('company_id', '=', parent.company_id)]"/>
-                                        <field name="metric"/>
+                                        <field name="metric" 
+                                            options="{'no_open': True}"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
-                                        <field name="progress" widget="progressbar"/>
+                                        <field name="achieve" 
+                                            readonly="0"
+                                            help="Achievement status or assessment"/>
                                         <field name="distributed_weightage" sum="Total Distributed %"/>
                                     </list>
                                 </field>

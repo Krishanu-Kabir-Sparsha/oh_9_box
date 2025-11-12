@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
 
@@ -6,8 +7,19 @@ class OHAppraisalNineboxTemplate(models.Model):
     _description = '9-Box Grid Assessment Template'
     _inherit = ['mail.thread', 'mail.activity.mixin']
 
-    name = fields.Char('Template Name', required=True, tracking=True)
-    department_id = fields.Many2one('hr.department', string='Department', tracking=True)
+    name = fields.Char(
+        'Template Name', 
+        required=True, 
+        tracking=True,
+        help="Give your template a unique, descriptive name"
+    )
+    department_id = fields.Many2one(
+        'hr.department', 
+        string='Department', 
+        tracking=True,
+        required=True,
+        help="Select department to automatically load weightage configuration"
+    )
     active = fields.Boolean('Active', default=True)
     company_id = fields.Many2one('res.company', default=lambda self: self.env.company)
 
@@ -67,12 +79,14 @@ class OHAppraisalNineboxTemplate(models.Model):
     performance_split = fields.Float(
         'Performance Split (%)', 
         tracking=True,
-        help="Percentage of department weightage allocated to Performance"
+        required=True,
+        help="Portion of department weightage allocated to performance criteria"
     )
     potential_split = fields.Float(
         'Potential Split (%)', 
         tracking=True,
-        help="Percentage of department weightage allocated to Potential"
+        required=True,
+        help="Portion of department weightage allocated to potential criteria"
     )
 
     # Split weightage fields
@@ -224,38 +238,27 @@ class OHAppraisalNineboxTemplate(models.Model):
     def _onchange_splits(self):
         for record in self:
             if not record.dept_weightage:
-                return {
-                    'warning': {
-                        'title': _('Warning'),
-                        'message': _('Please select a department first to get available weightage.')
-                    }
-                }
+                record.performance_split = 0.0
+                record.potential_split = 0.0
+                return
 
             if record.performance_split or record.potential_split:
                 total = (record.performance_split or 0.0) + (record.potential_split or 0.0)
                 if total > record.dept_weightage:
-                    return {
-                        'warning': {
-                            'title': _('Warning'),
-                            'message': _(
-                                'Total of Performance and Potential splits (%s%%) cannot exceed '
-                                'the available Department weightage (%s%%)'
-                            ) % (total, record.dept_weightage)
-                        }
-                    }
+                    excess = total - record.dept_weightage
+                    if record.potential_split:
+                        record.potential_split = max(0, record.potential_split - excess)
 
     @api.depends('department_id')
     def _compute_weightage_distribution(self):
         for record in self:
             if record.department_id:
-                # Get weightage from department configuration
                 dept_config = self.env['oh.appraisal.department.weightage'].search([
                     ('department_id', '=', record.department_id.id),
                     ('active', '=', True)
                 ], limit=1)
                 
                 if dept_config:
-                    # Using the correct field names from oh.appraisal.department.weightage model
                     record.dept_weightage = dept_config.functional_weightage
                     record.role_weightage = dept_config.role_weightage
                     record.common_weightage = dept_config.common_weightage
@@ -304,7 +307,6 @@ class OHAppraisalNineboxTemplate(models.Model):
                 'type': 'performance',
                 'department_weightage': okr_weightage.department_weightage,
                 'role_weightage': okr_weightage.role_weightage,
-                # common_weightage will be auto-computed
             }
             weightage = self.env['oh.appraisal.ninebox.weightage'].create(weightage_vals)
             existing_teams[okr_weightage.team_id.id] = weightage
@@ -312,8 +314,7 @@ class OHAppraisalNineboxTemplate(models.Model):
         # 3. Sync key results with exact values
         # Department key results
         for kr in okr_template.department_key_result_ids:
-            team_weightage = existing_teams.get(kr.team_id.id)
-            if team_weightage:
+            if kr.team_id.id in existing_teams:
                 self.env['oh.appraisal.ninebox.performance.line'].create({
                     'template_id': self.id,
                     'category': 'department',
@@ -323,13 +324,13 @@ class OHAppraisalNineboxTemplate(models.Model):
                     'metric': kr.metric,
                     'actual_value': kr.actual_value,
                     'target_value': kr.target_value,
+                    'achieve': '',
                     'distributed_weightage': kr.distributed_weightage,
                 })
 
         # Role key results 
         for kr in okr_template.role_key_result_ids:
-            team_weightage = existing_teams.get(kr.team_id.id)
-            if team_weightage:
+            if kr.team_id.id in existing_teams:
                 self.env['oh.appraisal.ninebox.performance.line'].create({
                     'template_id': self.id,
                     'category': 'role',
@@ -339,13 +340,13 @@ class OHAppraisalNineboxTemplate(models.Model):
                     'metric': kr.metric,
                     'actual_value': kr.actual_value,
                     'target_value': kr.target_value,
+                    'achieve': '',
                     'distributed_weightage': kr.distributed_weightage,
                 })
 
         # Common key results
         for kr in okr_template.common_key_result_ids:
-            team_weightage = existing_teams.get(kr.team_id.id)
-            if team_weightage:
+            if kr.team_id.id in existing_teams:
                 self.env['oh.appraisal.ninebox.performance.line'].create({
                     'template_id': self.id,
                     'category': 'common',
@@ -355,6 +356,7 @@ class OHAppraisalNineboxTemplate(models.Model):
                     'metric': kr.metric,
                     'actual_value': kr.actual_value,
                     'target_value': kr.target_value,
+                    'achieve': '',
                     'distributed_weightage': kr.distributed_weightage,
                 })
 
@@ -409,7 +411,6 @@ class OHAppraisalNineboxTemplate(models.Model):
             'selected_okr_template_id': False
         })
 
-        # Return a success message
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
@@ -503,7 +504,6 @@ class OHAppraisalNineboxTemplate(models.Model):
     def create(self, vals):
         record = super().create(vals)
         record._ensure_common_weightage_distribution()
-        # Force recomputation of allocated fields
         record._compute_allocated_to_teams()
         return record
 
@@ -511,7 +511,6 @@ class OHAppraisalNineboxTemplate(models.Model):
         res = super().write(vals)
         if any(f in vals for f in ['common_weightage', 'performance_weightage_ids', 'potential_weightage_ids']):
             self._ensure_common_weightage_distribution()
-            # Force recomputation of allocated fields
             self._compute_allocated_to_teams()
         return res
 
@@ -524,10 +523,8 @@ class OHAppraisalNineboxTemplate(models.Model):
                 weight_per_team = record.common_weightage / len(perf_teams)
                 weight_per_team = round(weight_per_team, 2)
                 
-                # Update all weightage records
                 perf_teams.write({'common_weightage': weight_per_team})
                 
-                # Handle any rounding discrepancy with the first record
                 total_allocated = sum(perf_teams.mapped('common_weightage'))
                 if abs(total_allocated - record.common_weightage) > 0.01:
                     difference = record.common_weightage - total_allocated
@@ -541,10 +538,8 @@ class OHAppraisalNineboxTemplate(models.Model):
                 weight_per_team = record.common_weightage / len(pot_teams)
                 weight_per_team = round(weight_per_team, 2)
                 
-                # Update all weightage records
                 pot_teams.write({'common_weightage': weight_per_team})
                 
-                # Handle any rounding discrepancy with the first record
                 total_allocated = sum(pot_teams.mapped('common_weightage'))
                 if abs(total_allocated - record.common_weightage) > 0.01:
                     difference = record.common_weightage - total_allocated
@@ -590,20 +585,40 @@ class OHAppraisalNineboxPerformanceLine(models.Model):
         ('medium', 'Medium'),
         ('high', 'High')
     ], default='medium')
-    team_id = fields.Many2one('oh.appraisal.team', string='Team')
-    metric = fields.Char('Metric/Measure')
-    actual_value = fields.Float('Actual Value')
-    target_value = fields.Float('Target Value')
-    progress = fields.Float('Progress (%)', compute='_compute_progress', store=True)
-    distributed_weightage = fields.Float('Distributed Weightage (%)')
+    team_id = fields.Many2one('oh.appraisal.team', string='Team', required=True)
+    metric = fields.Selection([
+        ('percentage', 'Percentage (%)'),
+        ('count', 'Count (Numeric)'),
+        ('rating', 'Rating (Scale)'),
+        ('score', 'Score (Points)')
+    ], string='Metric/Measure', default=False,
+    help="Select the type of measurement:\n"
+         "• Percentage: Measured as percentage value (0-100%)\n"
+         "• Count: Numeric count or quantity\n"
+         "• Rating: Scale-based rating (e.g., 1-5, 1-10)\n"
+         "• Score: Points-based scoring system\n"
+         "• Leave blank if no specific metric applies")
+    actual_value = fields.Float('Actual Value',
+    help="Actual numeric value achieved/measured")
+    target_value = fields.Float('Target Value', required=True,
+    help="Target numeric value to be achieved")
+    achieve = fields.Char('Achieve',
+    help="Achievement status or assessment",
+    default='')
+    distributed_weightage = fields.Float('Distributed Weightage (%)', required=True)
 
-    @api.depends('actual_value', 'target_value')
-    def _compute_progress(self):
-        for record in self:
-            if record.target_value:
-                record.progress = (record.actual_value / record.target_value) * 100
-            else:
-                record.progress = 0.0
+    @api.onchange('metric')
+    def _onchange_metric(self):
+        """Set default descriptions based on selected metric"""
+        metric_descriptions = {
+            'percentage': 'Measured as percentage (0-100%)',
+            'count': 'Measured as numeric count/quantity',
+            'rating': 'Measured on a rating scale',
+            'score': 'Measured in points'
+        }
+        
+        if self.metric and self.metric in metric_descriptions:
+            pass  # Metric helper for future use
 
 
 class OHAppraisalNineboxPotentialLine(models.Model):
@@ -625,20 +640,40 @@ class OHAppraisalNineboxPotentialLine(models.Model):
         ('medium', 'Medium'),
         ('high', 'High')
     ], default='medium')
-    team_id = fields.Many2one('oh.appraisal.team', string='Team')
-    metric = fields.Char('Metric/Measure')
-    actual_value = fields.Float('Actual Value')
-    target_value = fields.Float('Target Value')
-    progress = fields.Float('Progress (%)', compute='_compute_progress', store=True)
-    distributed_weightage = fields.Float('Distributed Weightage (%)')
+    team_id = fields.Many2one('oh.appraisal.team', string='Team', required=True)
+    metric = fields.Selection([
+        ('percentage', 'Percentage (%)'),
+        ('count', 'Count (Numeric)'),
+        ('rating', 'Rating (Scale)'),
+        ('score', 'Score (Points)')
+    ], string='Metric/Measure', default=False,
+    help="Select the type of measurement:\n"
+         "• Percentage: Measured as percentage value (0-100%)\n"
+         "• Count: Numeric count or quantity\n"
+         "• Rating: Scale-based rating (e.g., 1-5, 1-10)\n"
+         "• Score: Points-based scoring system\n"
+         "• Leave blank if no specific metric applies")
+    actual_value = fields.Float('Actual Value',
+    help="Actual numeric value achieved/measured")
+    target_value = fields.Float('Target Value', required=True,
+    help="Target numeric value to be achieved")
+    achieve = fields.Char('Achieve',
+    help="Achievement status or assessment",
+    default='')
+    distributed_weightage = fields.Float('Distributed Weightage (%)', required=True)
 
-    @api.depends('actual_value', 'target_value')
-    def _compute_progress(self):
-        for record in self:
-            if record.target_value:
-                record.progress = (record.actual_value / record.target_value) * 100
-            else:
-                record.progress = 0.0
+    @api.onchange('metric')
+    def _onchange_metric(self):
+        """Set default descriptions based on selected metric"""
+        metric_descriptions = {
+            'percentage': 'Measured as percentage (0-100%)',
+            'count': 'Measured as numeric count/quantity',
+            'rating': 'Measured on a rating scale',
+            'score': 'Measured in points'
+        }
+        
+        if self.metric and self.metric in metric_descriptions:
+            pass  # Metric helper for future use
 
 
 class OHAppraisalNineboxWeightage(models.Model):
