@@ -187,9 +187,9 @@
                                             options="{'no_open': True}"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
-                                        <field name="achieve" 
+                                        <!-- <field name="achieve" 
                                             readonly="0"
-                                            help="Achievement status or assessment"/>
+                                            help="Achievement status or assessment"/> -->
                                         <field name="distributed_weightage" sum="Total Distributed %"/>
                                     </list>
                                 </field>
@@ -224,9 +224,9 @@
                                             options="{'no_open': True}"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
-                                        <field name="achieve" 
+                                        <!-- <field name="achieve" 
                                             readonly="0"
-                                            help="Achievement status or assessment"/>
+                                            help="Achievement status or assessment"/> -->
                                         <field name="distributed_weightage" sum="Total Distributed %"/>
                                     </list>
                                 </field>
@@ -261,9 +261,9 @@
                                             options="{'no_open': True}"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
-                                        <field name="achieve" 
+                                        <!-- <field name="achieve" 
                                             readonly="0"
-                                            help="Achievement status or assessment"/>
+                                            help="Achievement status or assessment"/> -->
                                         <field name="distributed_weightage" sum="Total Distributed %"/>
                                     </list>
                                 </field>
@@ -344,9 +344,9 @@
                                             options="{'no_open': True}"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
-                                        <field name="achieve" 
+                                        <!-- <field name="achieve" 
                                             readonly="0"
-                                            help="Achievement status or assessment"/>
+                                            help="Achievement status or assessment"/> -->
                                         <field name="distributed_weightage" sum="Total Distributed %"/>
                                     </list>
                                 </field>
@@ -382,9 +382,9 @@
                                             options="{'no_open': True}"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
-                                        <field name="achieve" 
+                                        <!-- <field name="achieve" 
                                             readonly="0"
-                                            help="Achievement status or assessment"/>
+                                            help="Achievement status or assessment"/> -->
                                         <field name="distributed_weightage" sum="Total Distributed %"/>
                                     </list>
                                 </field>
@@ -420,9 +420,9 @@
                                             options="{'no_open': True}"/>
                                         <field name="actual_value"/>
                                         <field name="target_value"/>
-                                        <field name="achieve" 
+                                        <!-- <field name="achieve" 
                                             readonly="0"
-                                            help="Achievement status or assessment"/>
+                                            help="Achievement status or assessment"/> -->
                                         <field name="distributed_weightage" sum="Total Distributed %"/>
                                     </list>
                                 </field>

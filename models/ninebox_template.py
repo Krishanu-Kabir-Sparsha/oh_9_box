@@ -324,7 +324,7 @@ class OHAppraisalNineboxTemplate(models.Model):
                     'metric': kr.metric,
                     'actual_value': kr.actual_value,
                     'target_value': kr.target_value,
-                    'achieve': '',
+                    # 'achieve': '',
                     'distributed_weightage': kr.distributed_weightage,
                 })
 
@@ -340,7 +340,7 @@ class OHAppraisalNineboxTemplate(models.Model):
                     'metric': kr.metric,
                     'actual_value': kr.actual_value,
                     'target_value': kr.target_value,
-                    'achieve': '',
+                    # 'achieve': '',
                     'distributed_weightage': kr.distributed_weightage,
                 })
 
@@ -356,7 +356,7 @@ class OHAppraisalNineboxTemplate(models.Model):
                     'metric': kr.metric,
                     'actual_value': kr.actual_value,
                     'target_value': kr.target_value,
-                    'achieve': '',
+                    # 'achieve': '',
                     'distributed_weightage': kr.distributed_weightage,
                 })
 
@@ -602,9 +602,9 @@ class OHAppraisalNineboxPerformanceLine(models.Model):
     help="Actual numeric value achieved/measured")
     target_value = fields.Float('Target Value', required=True,
     help="Target numeric value to be achieved")
-    achieve = fields.Char('Achieve',
-    help="Achievement status or assessment",
-    default='')
+    # achieve = fields.Char('Achieve',
+    # help="Achievement status or assessment",
+    # default='')
     distributed_weightage = fields.Float('Distributed Weightage (%)', required=True)
 
     @api.onchange('metric')
@@ -657,9 +657,9 @@ class OHAppraisalNineboxPotentialLine(models.Model):
     help="Actual numeric value achieved/measured")
     target_value = fields.Float('Target Value', required=True,
     help="Target numeric value to be achieved")
-    achieve = fields.Char('Achieve',
-    help="Achievement status or assessment",
-    default='')
+    # achieve = fields.Char('Achieve',
+    # help="Achievement status or assessment",
+    # default='')
     distributed_weightage = fields.Float('Distributed Weightage (%)', required=True)
 
     @api.onchange('metric')
