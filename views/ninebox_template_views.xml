@@ -32,6 +32,9 @@
 
                     <group>
                         <group>
+                            <field name="industry_type"
+                                   options="{'no_create': True, 'no_open': True}"
+                                   placeholder="Select Industry Type"/>
                             <field name="department_id"/>
                             <field name="company_id" groups="base.group_multi_company"/>
                             <field name="is_synced" invisible="1"/>

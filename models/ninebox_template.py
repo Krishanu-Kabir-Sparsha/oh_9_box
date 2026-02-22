@@ -13,6 +13,13 @@ class OHAppraisalNineboxTemplate(models.Model):
         tracking=True,
         help="Give your template a unique, descriptive name"
     )
+    industry_type = fields.Many2one(
+        'oh.appraisal.industry',
+        string='Industry Type',
+        index=True,
+        tracking=True,
+        help="Select the industry type to fetch the configured weightages from the Master Template"
+    )
     department_id = fields.Many2one(
         'hr.department', 
         string='Department', 
@@ -249,14 +256,25 @@ class OHAppraisalNineboxTemplate(models.Model):
                     if record.potential_split:
                         record.potential_split = max(0, record.potential_split - excess)
 
-    @api.depends('department_id')
+    @api.depends('department_id', 'industry_type')
     def _compute_weightage_distribution(self):
         for record in self:
             if record.department_id:
-                dept_config = self.env['oh.appraisal.department.weightage'].search([
+                domain = [
                     ('department_id', '=', record.department_id.id),
-                    ('active', '=', True)
-                ], limit=1)
+                    ('active', '=', True),
+                ]
+                if record.industry_type:
+                    domain.append(('industry_type', '=', record.industry_type.id))
+                dept_config = self.env['oh.appraisal.department.weightage'].search(
+                    domain, limit=1
+                )
+                # Fallback: if no config found with industry, try without
+                if not dept_config and record.industry_type:
+                    dept_config = self.env['oh.appraisal.department.weightage'].search([
+                        ('department_id', '=', record.department_id.id),
+                        ('active', '=', True),
+                    ], limit=1)
                 
                 if dept_config:
                     record.dept_weightage = dept_config.functional_weightage
@@ -273,7 +291,7 @@ class OHAppraisalNineboxTemplate(models.Model):
 
     is_synced = fields.Boolean('Is Synced', default=False)
 
-    @api.onchange('department_id')
+    @api.onchange('department_id', 'industry_type')
     def _onchange_department_id(self):
         self.selected_okr_template_id = False
         self.performance_split = 0.0
